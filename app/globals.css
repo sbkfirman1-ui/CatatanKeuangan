@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #F8F9FA;
+    --foreground: #1E1E1E;
+    --surface: #FFFFFF;
+  }
+  
+  .dark {
+    --background: #000000; /* Pure black for maximum contrast */
+    --foreground: #ffffff; /* Pure white for text */
+    --surface: #1E1E1E; /* Distinct dark gray for cards */
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  @apply transition-colors duration-300;
+}
+
+.bento-card {
+  @apply bg-[var(--surface)] rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors duration-300;
+}
