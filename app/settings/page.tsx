@@ -21,6 +21,8 @@ export default function SettingsPage() {
     setUserIcon(localIcon);
     localStorage.setItem('userName', localName);
     localStorage.setItem('userIcon', localIcon);
+    localStorage.setItem('pages', JSON.stringify(localPages));
+    localStorage.setItem('dashboardLabels', JSON.stringify(localDashboardLabels));
     setPages(localPages);
     setDashboardLabels(localDashboardLabels);
     setIsSaved(true);

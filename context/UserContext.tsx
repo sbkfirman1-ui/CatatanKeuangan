@@ -109,6 +109,16 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const savedIcon = localStorage.getItem('userIcon');
     if (savedIcon) setUserIcon(savedIcon);
 
+    const savedPages = localStorage.getItem('pages');
+    if (savedPages) {
+      try { setPages(JSON.parse(savedPages)); } catch (e) {}
+    }
+
+    const savedLabels = localStorage.getItem('dashboardLabels');
+    if (savedLabels) {
+      try { setDashboardLabels(JSON.parse(savedLabels)); } catch (e) {}
+    }
+
     // Fetch data from Supabase
     const fetchData = async () => {
       const { data: txs } = await supabase.from('transactions').select('*').order('date', { ascending: false }).order('id', { ascending: false });
