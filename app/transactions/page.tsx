@@ -21,6 +21,7 @@ export default function TransactionsPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const handleExportCSV = () => {
     const headers = ['Date', 'Name', 'Category', 'Type', 'Amount', 'Notes'];
@@ -115,6 +116,7 @@ export default function TransactionsPage() {
                 <th className="py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name & Notes</th>
                 <th className="py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
                 <th className="py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Amount</th>
+                <th className="py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -134,6 +136,15 @@ export default function TransactionsPage() {
                   <td className={`py-4 px-6 text-sm font-semibold text-right ${t.type === 'income' ? 'text-green-500' : 'text-orange-500'}`}>
                     {t.amount > 0 ? '+' : '-'}Rp {Math.abs(t.amount).toLocaleString('id-ID')}
                   </td>
+                  <td className="py-4 px-6 text-center">
+                    <button 
+                      onClick={() => setDeleteConfirmId(t.id)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Hapus Transaksi"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -151,6 +162,23 @@ export default function TransactionsPage() {
         onConfirm={async () => {
           await supabase.from('transactions').delete().neq('id', 0);
           setTransactions([]);
+        }}
+        isDestructive={true}
+      />
+
+      <ConfirmModal 
+        isOpen={deleteConfirmId !== null}
+        title="Hapus Transaksi"
+        message="Apakah Anda yakin ingin menghapus transaksi ini? Data yang dihapus tidak dapat dikembalikan."
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        onCancel={() => setDeleteConfirmId(null)}
+        onConfirm={async () => {
+          if (deleteConfirmId !== null) {
+            await supabase.from('transactions').delete().eq('id', deleteConfirmId);
+            setTransactions(prev => prev.filter(t => t.id !== deleteConfirmId));
+            setDeleteConfirmId(null);
+          }
         }}
         isDestructive={true}
       />
