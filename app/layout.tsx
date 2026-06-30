@@ -11,6 +11,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "CatatanKeuangan",
   description: "Financial Notes App",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
