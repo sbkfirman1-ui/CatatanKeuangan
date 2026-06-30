@@ -72,6 +72,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [pages, setPages] = useState<PageMeta[]>([
     { id: 'dashboard', path: '/', name: 'Dashboard', icon: 'Layout' },
     { id: 'transactions', path: '/transactions', name: 'Transactions', icon: 'List' },
+    { id: 'statement', path: '/statement', name: 'Laporan', icon: 'PieChart' },
     { id: 'categories', path: '/categories', name: 'Categories', icon: 'Grid' },
     { id: 'shopping', path: '/shopping', name: 'Catatan Belanja', icon: 'ShoppingCart' }
   ]);

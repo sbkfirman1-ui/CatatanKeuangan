@@ -2,7 +2,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Wallet, Activity, TrendingUp, Settings, User, Smile, Cat, Dog, Coffee, Heart, Zap, Briefcase, Calendar, CheckSquare, Compass, CreditCard, DollarSign, FileText, Gift, Grid, Layout, List, Map, MessageCircle, Moon, Music, Package, PenTool, Phone, Play, Printer, Search, Star, Sun, Truck, Video, Camera, Image as ImageIcon, File, LogOut } from 'lucide-react';
+import { Home, Wallet, Activity, TrendingUp, Settings, User, Smile, Cat, Dog, Coffee, Heart, Zap, Briefcase, Calendar, CheckSquare, Compass, CreditCard, DollarSign, FileText, Gift, Grid, Layout, List, Map, MessageCircle, Moon, Music, Package, PenTool, Phone, Play, Printer, Search, Star, Sun, Truck, Video, Camera, Image as ImageIcon, File, LogOut, PieChart } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 
 // Expand icons so user has many choices for pages
@@ -44,7 +44,8 @@ export const AVAILABLE_ICONS: Record<string, React.ReactNode> = {
   Video: <Video size={24} />,
   Camera: <Camera size={24} />,
   Image: <ImageIcon size={24} />,
-  File: <File size={24} />
+  File: <File size={24} />,
+  PieChart: <PieChart size={24} />
 };
 
 export default function Sidebar() {
