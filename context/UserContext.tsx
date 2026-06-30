@@ -103,6 +103,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       document.documentElement.classList.add('dark');
     }
 
+    const savedName = localStorage.getItem('userName');
+    if (savedName) setUserName(savedName);
+    
+    const savedIcon = localStorage.getItem('userIcon');
+    if (savedIcon) setUserIcon(savedIcon);
+
     // Fetch data from Supabase
     const fetchData = async () => {
       const { data: txs } = await supabase.from('transactions').select('*').order('date', { ascending: false }).order('id', { ascending: false });

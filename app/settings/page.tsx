@@ -19,6 +19,8 @@ export default function SettingsPage() {
   const handleSave = () => {
     setUserName(localName);
     setUserIcon(localIcon);
+    localStorage.setItem('userName', localName);
+    localStorage.setItem('userIcon', localIcon);
     setPages(localPages);
     setDashboardLabels(localDashboardLabels);
     setIsSaved(true);

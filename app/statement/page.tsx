@@ -7,17 +7,19 @@ import { AVAILABLE_ICONS } from '@/components/Sidebar';
 
 export default function StatementPage() {
   const { transactions, categories } = useUser();
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [inputStartDate, setInputStartDate] = useState('');
+  const [inputEndDate, setInputEndDate] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
 
-  // Filter transactions by date
+  // Filter transactions by applied date
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      if (startDate && t.date < startDate) return false;
-      if (endDate && t.date > endDate) return false;
+      if (appliedStartDate && t.date < appliedStartDate) return false;
+      if (appliedEndDate && t.date > appliedEndDate) return false;
       return true;
     });
-  }, [transactions, startDate, endDate]);
+  }, [transactions, appliedStartDate, appliedEndDate]);
 
   // Aggregate Data
   const { totalIncome, totalExpense, expensePercentage, remainingBalance, expensesByCategory, incomesByCategory } = useMemo(() => {
@@ -99,19 +101,30 @@ export default function StatementPage() {
         </div>
         <input 
           type="date" 
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
+          value={inputStartDate}
+          onChange={(e) => setInputStartDate(e.target.value)}
           className="border-none rounded-lg px-3 py-2 text-sm bg-white shadow-sm outline-none ring-1 ring-gray-200 focus:ring-primary text-secondary"
         />
         <span className="text-gray-400 text-sm">sampai</span>
         <input 
           type="date" 
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
+          value={inputEndDate}
+          onChange={(e) => setInputEndDate(e.target.value)}
           className="border-none rounded-lg px-3 py-2 text-sm bg-white shadow-sm outline-none ring-1 ring-gray-200 focus:ring-primary text-secondary"
         />
         <button 
-          onClick={() => { setStartDate(''); setEndDate(''); }}
+          onClick={() => { setAppliedStartDate(inputStartDate); setAppliedEndDate(inputEndDate); }}
+          className="bg-primary hover:bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
+        >
+          Terapkan
+        </button>
+        <button 
+          onClick={() => { 
+            setInputStartDate(''); 
+            setInputEndDate(''); 
+            setAppliedStartDate(''); 
+            setAppliedEndDate(''); 
+          }}
           className="text-sm text-gray-500 hover:text-gray-700 font-medium px-2"
         >
           Reset Filter
