@@ -17,7 +17,7 @@ const getCategoryIcon = (categoryName: string, categories: any[]) => {
 };
 
 export default function LandingPage() {
-  const { pages, dashboardLabels, categories, transactions, setTransactions } = useUser();
+  const { pages, dashboardLabels, categories, transactions, setTransactions, formatAmount } = useUser();
   const pageMeta = pages.find(p => p.id === 'dashboard');
 
   const [isMounted, setIsMounted] = useState(false);
@@ -235,7 +235,7 @@ export default function LandingPage() {
               )}
             </div>
             <h2 className="text-4xl md:text-5xl font-extrabold text-secondary mt-6 tracking-tight">
-              Rp {balance.toLocaleString('id-ID')}
+              {formatAmount(balance)}
             </h2>
           </div>
         </motion.div>
@@ -247,7 +247,7 @@ export default function LandingPage() {
             <span className="font-semibold">{dashboardLabels.income}</span>
           </div>
           <div>
-            <h3 className="text-2xl font-bold text-secondary">Rp {income.toLocaleString('id-ID')}</h3>
+            <h3 className="text-2xl font-bold text-secondary">{formatAmount(income)}</h3>
             <p className="text-sm font-medium text-green-500 mt-1">Bulan {currentMonthStr}</p>
           </div>
         </motion.div>
@@ -259,7 +259,7 @@ export default function LandingPage() {
             <span className="font-semibold">{dashboardLabels.expense}</span>
           </div>
           <div>
-            <h3 className="text-2xl font-bold text-secondary">Rp {expense.toLocaleString('id-ID')}</h3>
+            <h3 className="text-2xl font-bold text-secondary">{formatAmount(expense)}</h3>
             <p className="text-sm font-medium text-primary mt-1">Bulan {currentMonthStr}</p>
           </div>
         </motion.div>
@@ -291,13 +291,13 @@ export default function LandingPage() {
                     height: `${data.income}%`, 
                     backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.2) 5px, rgba(255,255,255,0.2) 10px)' 
                   }}
-                  title={`Income: Rp ${data.incomeRaw.toLocaleString('id-ID')}`}
+                  title={`Income: ${formatAmount(data.incomeRaw)}`}
                 ></div>
                 {/* Expense Bar (Black Solid) - On Bottom */}
                 <div 
                   className="w-full bg-secondary rounded-b-lg transition-all duration-300 group-hover:brightness-125 shadow-sm" 
                   style={{ height: `${data.expense}%` }}
-                  title={`Expense: Rp ${data.expenseRaw.toLocaleString('id-ID')}`}
+                  title={`Expense: ${formatAmount(data.expenseRaw)}`}
                 ></div>
               </div>
             ))}
@@ -328,7 +328,7 @@ export default function LandingPage() {
                   </div>
                 </div>
                 <span className={`font-bold text-sm ${item.type === 'income' ? 'text-green-500' : 'text-orange-500'}`}>
-                  {item.amount > 0 ? '+' : ''}Rp {Math.abs(item.amount).toLocaleString('id-ID')}
+                  {item.amount > 0 ? '+' : ''}{formatAmount(Math.abs(item.amount))}
                 </span>
               </div>
             ))}
@@ -364,7 +364,7 @@ export default function LandingPage() {
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF', fontWeight: 500 }} tickFormatter={(val) => `Rp${val/1000}k`} />
                 <Tooltip 
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number) => [`Rp ${value.toLocaleString('id-ID')}`, '']}
+                  formatter={(value: number) => [formatAmount(value), '']}
                 />
                 <Area type="monotone" dataKey="pemasukan" name="Pemasukan" stroke="#22C55E" strokeWidth={3} fillOpacity={1} fill="url(#colorPemasukan)" />
                 <Area type="monotone" dataKey="pengeluaran" name="Pengeluaran" stroke="#FF5722" strokeWidth={3} fillOpacity={1} fill="url(#colorPengeluaran)" />

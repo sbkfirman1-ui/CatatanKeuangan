@@ -2,7 +2,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Wallet, Activity, TrendingUp, Settings, User, Smile, Cat, Dog, Coffee, Heart, Zap, Briefcase, Calendar, CheckSquare, Compass, CreditCard, DollarSign, FileText, Gift, Grid, Layout, List, Map, MessageCircle, Moon, Music, Package, PenTool, Phone, Play, Printer, Search, Star, Sun, Truck, Video, Camera, Image as ImageIcon, File, LogOut, PieChart } from 'lucide-react';
+import { Home, Wallet, Activity, TrendingUp, Settings, User, Smile, Cat, Dog, Coffee, Heart, Zap, Briefcase, Calendar, CheckSquare, Compass, CreditCard, DollarSign, FileText, Gift, Grid, Layout, List, Map, MessageCircle, Moon, Music, Package, PenTool, Phone, Play, Printer, Search, Star, Sun, Truck, Video, Camera, Image as ImageIcon, File, LogOut, PieChart, Eye, EyeOff } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 
 // Expand icons so user has many choices for pages
@@ -50,7 +50,7 @@ export const AVAILABLE_ICONS: Record<string, React.ReactNode> = {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { userName, userIcon, pages, theme, toggleTheme, setIsAppLocked } = useUser();
+  const { userName, userIcon, pages, theme, toggleTheme, setIsAppLocked, isBalanceHidden, toggleBalanceVisibility } = useUser();
 
   return (
     <>
@@ -87,6 +87,14 @@ export default function Sidebar() {
 
       {/* Settings & Profile */}
       <div className="flex flex-col items-center gap-6 w-full">
+        <button 
+          onClick={toggleBalanceVisibility}
+          className="p-3 rounded-xl transition-colors text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800"
+          title="Sembunyikan Saldo"
+        >
+          {isBalanceHidden ? <EyeOff size={24} /> : <Eye size={24} />}
+        </button>
+
         <button 
           onClick={toggleTheme}
           className="p-3 rounded-xl transition-colors text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -130,8 +138,11 @@ export default function Sidebar() {
           </div>
           <span>Rumah Kita</span>
         </div>
-        <div className="flex items-center gap-5 text-gray-400">
-          <button onClick={toggleTheme} className="hover:text-primary transition-colors">
+        <div className="flex items-center gap-4 text-gray-400">
+          <button onClick={toggleBalanceVisibility} className="hover:text-primary transition-colors" title="Sembunyikan Saldo">
+            {isBalanceHidden ? <EyeOff size={22} /> : <Eye size={22} />}
+          </button>
+          <button onClick={toggleTheme} className="hover:text-primary transition-colors" title="Toggle Theme">
             {theme === 'dark' ? <Sun size={22} /> : <Moon size={22} />}
           </button>
           <button onClick={() => setIsAppLocked(true)} className="hover:text-red-500 transition-colors" title="Kunci Aplikasi">

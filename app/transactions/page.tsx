@@ -15,7 +15,7 @@ const getCategoryIcon = (categoryName: string, categories: any[]) => {
 };
 
 export default function TransactionsPage() {
-  const { pages, transactions, categories, setTransactions } = useUser();
+  const { pages, transactions, categories, setTransactions, formatAmount } = useUser();
   const pageMeta = pages.find(p => p.id === 'transactions');
 
   const [startDate, setStartDate] = useState('');
@@ -134,7 +134,7 @@ export default function TransactionsPage() {
                     </div>
                   </td>
                   <td className={`py-4 px-6 text-sm font-semibold text-right ${t.type === 'income' ? 'text-green-500' : 'text-orange-500'}`}>
-                    {t.amount > 0 ? '+' : '-'}Rp {Math.abs(t.amount).toLocaleString('id-ID')}
+                    {t.amount > 0 ? '+' : '-'}{formatAmount(Math.abs(t.amount))}
                   </td>
                   <td className="py-4 px-6 text-center">
                     <button 

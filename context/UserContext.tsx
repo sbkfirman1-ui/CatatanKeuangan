@@ -62,6 +62,10 @@ type UserContextType = {
   toggleTheme: () => void;
   isAppLocked: boolean;
   setIsAppLocked: React.Dispatch<React.SetStateAction<boolean>>;
+  isBalanceHidden: boolean;
+  setIsBalanceHidden: React.Dispatch<React.SetStateAction<boolean>>;
+  toggleBalanceVisibility: () => void;
+  formatAmount: (amount: number, prefix?: string) => string;
 };
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -91,6 +95,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [isAppLocked, setIsAppLocked] = useState(true); // Start locked (showing intro)
+  const [isBalanceHidden, setIsBalanceHidden] = useState(false);
 
   useEffect(() => {
     // Check if user has a preference in localStorage or system
@@ -118,6 +123,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     if (savedLabels) {
       try { setDashboardLabels(JSON.parse(savedLabels)); } catch (e) {}
     }
+
+    const savedHidden = localStorage.getItem('isBalanceHidden');
+    if (savedHidden) setIsBalanceHidden(savedHidden === 'true');
 
     // Fetch data from Supabase
     const fetchData = async () => {
@@ -174,6 +182,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const toggleBalanceVisibility = () => {
+    setIsBalanceHidden(prev => {
+      const newState = !prev;
+      localStorage.setItem('isBalanceHidden', String(newState));
+      return newState;
+    });
+  };
+
+  const formatAmount = (amount: number, prefix: string = 'Rp ') => {
+    if (isBalanceHidden) return `${prefix}••••••`;
+    return `${prefix}${amount.toLocaleString('id-ID')}`;
+  };
+
   const contextValue = useMemo(() => ({
     userName, setUserName, 
     userIcon, setUserIcon, 
@@ -183,8 +204,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     transactions, setTransactions,
     shoppingItems, setShoppingItems,
     theme, toggleTheme,
-    isAppLocked, setIsAppLocked
-  }), [userName, userIcon, pages, dashboardLabels, categories, transactions, shoppingItems, theme, isAppLocked]);
+    isAppLocked, setIsAppLocked,
+    isBalanceHidden, setIsBalanceHidden,
+    toggleBalanceVisibility,
+    formatAmount
+  }), [userName, userIcon, pages, dashboardLabels, categories, transactions, shoppingItems, theme, isAppLocked, isBalanceHidden]);
 
   return (
     <UserContext.Provider value={contextValue}>

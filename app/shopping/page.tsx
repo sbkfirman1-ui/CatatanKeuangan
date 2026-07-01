@@ -6,7 +6,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { supabase } from '@/lib/supabase';
 
 export default function ShoppingPage() {
-  const { pages, shoppingItems, setShoppingItems } = useUser();
+  const { pages, shoppingItems, setShoppingItems, formatAmount } = useUser();
   const pageMeta = pages.find(p => p.id === 'shopping');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -168,7 +168,7 @@ export default function ShoppingPage() {
                 </div>
                 <div className="mt-auto pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                   <span className="text-sm font-bold text-gray-400 dark:text-gray-500 flex items-center gap-1"><Tag size={14} /> Harga</span>
-                  <span className="font-bold text-primary text-xl">Rp {item.price.toLocaleString('id-ID')}</span>
+                  <span className="font-bold text-primary text-xl">{formatAmount(item.price)}</span>
                 </div>
               </div>
             ))}

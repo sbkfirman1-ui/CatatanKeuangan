@@ -6,7 +6,7 @@ import { TrendingUp, TrendingDown, Activity, AlertCircle, Filter, Briefcase } fr
 import { AVAILABLE_ICONS } from '@/components/Sidebar';
 
 export default function StatementPage() {
-  const { transactions, categories } = useUser();
+  const { transactions, categories, formatAmount } = useUser();
   const [inputStartDate, setInputStartDate] = useState('');
   const [inputEndDate, setInputEndDate] = useState('');
   const [appliedStartDate, setAppliedStartDate] = useState('');
@@ -143,7 +143,7 @@ export default function StatementPage() {
           <div>
             <p className="text-sm font-bold text-gray-400 mb-1">TOTAL PEMASUKAN</p>
             <h2 className="text-2xl font-black text-secondary">
-              Rp {totalIncome.toLocaleString('id-ID')}
+              {formatAmount(totalIncome)}
             </h2>
           </div>
         </div>
@@ -159,7 +159,7 @@ export default function StatementPage() {
           <div>
             <p className="text-sm font-bold text-gray-400 mb-1">TOTAL PENGELUARAN</p>
             <h2 className="text-2xl font-black text-secondary">
-              Rp {totalExpense.toLocaleString('id-ID')}
+              {formatAmount(totalExpense)}
             </h2>
           </div>
         </div>
@@ -219,7 +219,7 @@ export default function StatementPage() {
                     ))}
                   </Pie>
                   <Tooltip 
-                    formatter={(value: number) => `Rp ${value.toLocaleString('id-ID')}`}
+                    formatter={(value: number) => formatAmount(value)}
                     contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
                   />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" />
@@ -239,11 +239,11 @@ export default function StatementPage() {
             </h4>
             <p className="text-secondary text-base leading-relaxed">
               {remainingBalance > 0 ? (
-                <>Anda memiliki surplus (sisa saldo) sebesar <b>Rp {remainingBalance.toLocaleString('id-ID')}</b> pada periode ini. Kondisi keuangan Anda terpantau sehat dan aman!</>
+                <>Anda memiliki surplus (sisa saldo) sebesar <b>{formatAmount(remainingBalance)}</b> pada periode ini. Kondisi keuangan Anda terpantau sehat dan aman!</>
               ) : remainingBalance === 0 ? (
                 <>Saldo Anda saat ini adalah <b>Rp 0</b>. Anda menghabiskan tepat sejumlah yang Anda hasilkan.</>
               ) : (
-                <>Anda mengalami defisit keuangan sebesar <b className="text-red-500">Rp {Math.abs(remainingBalance).toLocaleString('id-ID')}</b>. Pengeluaran Anda lebih besar daripada pemasukan!</>
+                <>Anda mengalami defisit keuangan sebesar <b className="text-red-500">{formatAmount(Math.abs(remainingBalance))}</b>. Pengeluaran Anda lebih besar daripada pemasukan!</>
               )}
             </p>
           </div>
@@ -290,7 +290,7 @@ export default function StatementPage() {
                         <p className="text-xs text-gray-400">{item.percentage.toFixed(1)}% dari total pengeluaran</p>
                       </div>
                     </div>
-                    <p className="font-semibold text-secondary">Rp {item.amount.toLocaleString('id-ID')}</p>
+                    <p className="font-semibold text-secondary">{formatAmount(item.amount)}</p>
                   </div>
                   {/* Category Progress Bar */}
                   <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
@@ -328,7 +328,7 @@ export default function StatementPage() {
                         <p className="text-xs text-gray-400">{item.percentage.toFixed(1)}% dari total pemasukan</p>
                       </div>
                     </div>
-                    <p className="font-semibold text-secondary">Rp {item.amount.toLocaleString('id-ID')}</p>
+                    <p className="font-semibold text-secondary">{formatAmount(item.amount)}</p>
                   </div>
                   {/* Category Progress Bar */}
                   <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
