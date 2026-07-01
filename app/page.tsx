@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Wallet, TrendingUp, TrendingDown, ArrowRight, Plus, X, Briefcase, ShoppingCart, Coffee, Lightbulb, Filter } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, ArrowRight, Plus, X, Briefcase, ShoppingCart, Coffee, Lightbulb, Filter, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useUser } from '@/context/UserContext';
@@ -17,7 +17,7 @@ const getCategoryIcon = (categoryName: string, categories: any[]) => {
 };
 
 export default function LandingPage() {
-  const { pages, dashboardLabels, categories, transactions, setTransactions, formatAmount } = useUser();
+  const { pages, dashboardLabels, categories, transactions, setTransactions, formatAmount, isBalanceHidden, toggleBalanceVisibility } = useUser();
   const pageMeta = pages.find(p => p.id === 'dashboard');
 
   const [isMounted, setIsMounted] = useState(false);
@@ -189,6 +189,14 @@ export default function LandingPage() {
               Terapkan
             </button>
           </div>
+
+          <button 
+            onClick={toggleBalanceVisibility}
+            className="flex items-center justify-center p-3.5 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 hover:text-primary rounded-2xl shadow-sm ring-1 ring-gray-100 dark:ring-gray-700 transition-all shrink-0"
+            title="Sembunyikan Saldo"
+          >
+            {isBalanceHidden ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
 
           <button 
             onClick={() => setIsModalOpen(true)}
