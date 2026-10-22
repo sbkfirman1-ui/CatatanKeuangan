@@ -43,6 +43,70 @@ export type ShoppingItem = {
   date?: string;
 };
 
+export type PocketHistoryItem = {
+  id: string;
+  pocketId: string;
+  pocketName?: string;
+  pocketIcon?: string;
+  pocketColor?: string;
+  type: 'deposit' | 'withdraw';
+  amount: number;
+  notes?: string;
+  date: string;
+};
+
+export type PocketMeta = {
+  id: string;
+  name: string;
+  type: 'saving' | 'budget';
+  balance: number;
+  targetAmount?: number;
+  icon: string;
+  color: string;
+  notes?: string;
+  createdAt: string;
+  history?: PocketHistoryItem[];
+};
+
+export const DEFAULT_POCKETS: PocketMeta[] = [
+  {
+    id: 'pocket-emergency',
+    name: 'Dana Darurat',
+    type: 'saving',
+    balance: 0,
+    targetAmount: 10000000,
+    icon: 'Shield',
+    color: 'blue',
+    notes: 'Pos simpanan darurat 3-6 bulan pengeluaran',
+    createdAt: new Date().toISOString(),
+    history: []
+  },
+  {
+    id: 'pocket-monthly',
+    name: 'Kebutuhan Bulanan',
+    type: 'budget',
+    balance: 0,
+    targetAmount: 3500000,
+    icon: 'Coffee',
+    color: 'amber',
+    notes: 'Pos belanja pokok, dapur, dan tagihan rutin',
+    createdAt: new Date().toISOString(),
+    history: []
+  },
+  {
+    id: 'pocket-holiday',
+    name: 'Tabungan Liburan',
+    type: 'saving',
+    balance: 0,
+    targetAmount: 5000000,
+    icon: 'Plane',
+    color: 'emerald',
+    notes: 'Rencana liburan & refreshing keluarga',
+    createdAt: new Date().toISOString(),
+    history: []
+  }
+];
+
 type UserContextType = {
   userName: string;
   setUserName: (name: string) => void;
@@ -58,6 +122,12 @@ type UserContextType = {
   setTransactions: React.Dispatch<React.SetStateAction<TransactionMeta[]>>;
   shoppingItems: ShoppingItem[];
   setShoppingItems: React.Dispatch<React.SetStateAction<ShoppingItem[]>>;
+  pockets: PocketMeta[];
+  setPockets: React.Dispatch<React.SetStateAction<PocketMeta[]>>;
+  addPocket: (pocket: Omit<PocketMeta, 'id' | 'createdAt' | 'history'>) => void;
+  updatePocket: (id: string, updates: Partial<PocketMeta>) => void;
+  deletePocket: (id: string) => void;
+  allocatePocketFunds: (pocketId: string, amount: number, type: 'deposit' | 'withdraw', notes?: string) => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   isAppLocked: boolean;
@@ -66,6 +136,9 @@ type UserContextType = {
   setIsBalanceHidden: React.Dispatch<React.SetStateAction<boolean>>;
   toggleBalanceVisibility: () => void;
   formatAmount: (amount: number, prefix?: string) => string;
+  isTxModalOpen: boolean;
+  setIsTxModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  openTxModal: () => void;
 };
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -76,8 +149,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [pages, setPages] = useState<PageMeta[]>([
     { id: 'dashboard', path: '/', name: 'Dashboard', icon: 'Layout' },
     { id: 'transactions', path: '/transactions', name: 'Transactions', icon: 'List' },
-    { id: 'statement', path: '/statement', name: 'Laporan', icon: 'PieChart' },
-    { id: 'categories', path: '/categories', name: 'Categories', icon: 'Grid' },
+    { id: 'pocket', path: '/pocket', name: 'Pocket', icon: 'Wallet' },
     { id: 'shopping', path: '/shopping', name: 'Catatan Belanja', icon: 'ShoppingCart' }
   ]);
   const [dashboardLabels, setDashboardLabels] = useState<DashboardLabels>({
@@ -90,12 +162,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [categories, setCategories] = useState<CategoryMeta[]>([]);
-
   const [transactions, setTransactions] = useState<TransactionMeta[]>([]);
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([]);
+  const [pockets, setPockets] = useState<PocketMeta[]>(DEFAULT_POCKETS);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [isAppLocked, setIsAppLocked] = useState(true); // Start locked (showing intro)
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
+  const [isTxModalOpen, setIsTxModalOpen] = useState(false);
+
+  const openTxModal = () => setIsTxModalOpen(true);
 
   useEffect(() => {
     // Check if user has a preference in localStorage or system
@@ -116,7 +191,22 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     const savedPages = localStorage.getItem('pages');
     if (savedPages) {
-      try { setPages(JSON.parse(savedPages)); } catch (e) {}
+      try {
+        let parsed = JSON.parse(savedPages);
+        if (Array.isArray(parsed)) {
+          // Remove statement & categories page from main navigation
+          parsed = parsed.filter((p: any) => 
+            p.id !== 'statement' && p.path !== '/statement' &&
+            p.id !== 'categories' && p.path !== '/categories'
+          );
+          // If pocket page is not present in saved pages, add it
+          if (!parsed.some((p: any) => p.id === 'pocket')) {
+            parsed.splice(2, 0, { id: 'pocket', path: '/pocket', name: 'Pocket', icon: 'Wallet' });
+          }
+          localStorage.setItem('pages', JSON.stringify(parsed));
+          setPages(parsed);
+        }
+      } catch (e) {}
     }
 
     const savedLabels = localStorage.getItem('dashboardLabels');
@@ -126,6 +216,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     const savedHidden = localStorage.getItem('isBalanceHidden');
     if (savedHidden) setIsBalanceHidden(savedHidden === 'true');
+
+    // Load pockets from localStorage
+    const savedPockets = localStorage.getItem('pockets');
+    if (savedPockets) {
+      try {
+        const parsed = JSON.parse(savedPockets);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setPockets(parsed);
+        }
+      } catch (e) {}
+    }
 
     // Fetch data from Supabase
     const fetchData = async () => {
@@ -195,6 +296,64 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     return `${prefix}${amount.toLocaleString('id-ID')}`;
   };
 
+  const addPocket = (newPocketData: Omit<PocketMeta, 'id' | 'createdAt' | 'history'>) => {
+    const newPocket: PocketMeta = {
+      ...newPocketData,
+      id: `pocket-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      history: []
+    };
+    setPockets(prev => {
+      const updated = [...prev, newPocket];
+      localStorage.setItem('pockets', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const updatePocket = (id: string, updates: Partial<PocketMeta>) => {
+    setPockets(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, ...updates } : p);
+      localStorage.setItem('pockets', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const deletePocket = (id: string) => {
+    setPockets(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      localStorage.setItem('pockets', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const allocatePocketFunds = (pocketId: string, amount: number, type: 'deposit' | 'withdraw', notes?: string) => {
+    setPockets(prev => {
+      const updated = prev.map(p => {
+        if (p.id !== pocketId) return p;
+        const delta = type === 'deposit' ? amount : -amount;
+        const newBalance = Math.max(0, (p.balance || 0) + delta);
+        const historyItem: PocketHistoryItem = {
+          id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          pocketId,
+          pocketName: p.name,
+          pocketIcon: p.icon,
+          pocketColor: p.color,
+          type,
+          amount,
+          notes: notes || (type === 'deposit' ? 'Alokasi Masuk' : 'Penarikan Dana'),
+          date: new Date().toISOString()
+        };
+        return {
+          ...p,
+          balance: newBalance,
+          history: [historyItem, ...(p.history || [])]
+        };
+      });
+      localStorage.setItem('pockets', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const contextValue = useMemo(() => ({
     userName, setUserName, 
     userIcon, setUserIcon, 
@@ -203,12 +362,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     categories, setCategories,
     transactions, setTransactions,
     shoppingItems, setShoppingItems,
+    pockets, setPockets,
+    addPocket, updatePocket, deletePocket, allocatePocketFunds,
     theme, toggleTheme,
     isAppLocked, setIsAppLocked,
     isBalanceHidden, setIsBalanceHidden,
     toggleBalanceVisibility,
-    formatAmount
-  }), [userName, userIcon, pages, dashboardLabels, categories, transactions, shoppingItems, theme, isAppLocked, isBalanceHidden]);
+    formatAmount,
+    isTxModalOpen, setIsTxModalOpen, openTxModal
+  }), [userName, userIcon, pages, dashboardLabels, categories, transactions, shoppingItems, pockets, theme, isAppLocked, isBalanceHidden, isTxModalOpen]);
 
   return (
     <UserContext.Provider value={contextValue}>

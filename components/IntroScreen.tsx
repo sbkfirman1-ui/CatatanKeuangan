@@ -34,7 +34,7 @@ export default function IntroScreen() {
         >
           {/* Decorative Background Elements */}
           <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2 mix-blend-multiply dark:mix-blend-lighten" />
-          <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-orange-300/20 dark:bg-orange-900/20 rounded-full blur-[120px] translate-x-1/3 translate-y-1/3 mix-blend-multiply dark:mix-blend-lighten" />
+          <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-accent/20 dark:bg-accent/15 rounded-full blur-[120px] translate-x-1/3 translate-y-1/3 mix-blend-multiply dark:mix-blend-lighten" />
 
           <div className="relative z-10 flex flex-col items-center justify-center max-w-4xl w-full px-6">
             
@@ -66,7 +66,7 @@ export default function IntroScreen() {
               className="relative mb-12 text-center"
             >
               <h1 className="text-3xl md:text-5xl font-extrabold text-secondary dark:text-white tracking-tight relative z-10">
-                Selamat Datang di <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400">Rumah Kita</span>
+                Selamat Datang di <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Rumah Kita</span>
               </h1>
             </motion.div>
 

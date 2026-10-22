@@ -122,7 +122,7 @@ export default function ShoppingPage() {
           </button>
           <button 
             onClick={() => openModal()}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-orange-600 text-white px-5 py-3 rounded-2xl font-bold transition-all shadow-sm shadow-orange-200/50 dark:shadow-none hover:-translate-y-0.5"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white px-5 py-3 rounded-2xl font-bold transition-all shadow-sm shadow-primary/20 dark:shadow-none hover:-translate-y-0.5"
           >
             <Plus size={20} />
             <span>Tambah Belanja</span>
@@ -158,7 +158,7 @@ export default function ShoppingPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openModal(item)} className="p-2 bg-white dark:bg-gray-700 hover:bg-orange-50 dark:hover:bg-gray-600 text-gray-500 hover:text-primary rounded-xl shadow-sm transition-colors">
+                    <button onClick={() => openModal(item)} className="p-2 bg-white dark:bg-gray-700 hover:bg-primary/10 dark:hover:bg-primary/20 text-gray-500 hover:text-primary rounded-xl shadow-sm transition-colors">
                       <Edit2 size={14} />
                     </button>
                     <button onClick={() => handleDelete(item.id)} className="p-2 bg-white dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-500 hover:text-red-500 rounded-xl shadow-sm transition-colors">
@@ -240,7 +240,7 @@ export default function ShoppingPage() {
                 <button 
                   onClick={handleSave}
                   disabled={!itemName || !itemStore || !itemPrice}
-                  className="w-full bg-primary hover:bg-orange-600 disabled:opacity-50 disabled:hover:bg-primary text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 mt-2 transition-colors shadow-sm"
+                  className="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:hover:bg-primary text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 mt-2 transition-colors shadow-sm"
                 >
                   <Save size={20} />
                   Simpan Catatan

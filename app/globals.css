@@ -4,15 +4,19 @@
 
 @layer base {
   :root {
-    --background: #F8F9FA;
-    --foreground: #1E1E1E;
-    --surface: #FFFFFF;
+    --background: #FAF8F5; /* Warm ivory studio background from Ruang Edit */
+    --foreground: #221C2B; /* Deep studio charcoal-plum */
+    --surface: #FFFFFF;    /* Clean card surface */
+    --muted: #796E8A;      /* Soft mauve slate */
+    --border: #EDE7DE;     /* Warm subtle border */
   }
   
   .dark {
-    --background: #000000; /* Pure black for maximum contrast */
-    --foreground: #ffffff; /* Pure white for text */
-    --surface: #1E1E1E; /* Distinct dark gray for cards */
+    --background: #14101B; /* Deep obsidian violet */
+    --foreground: #F8F6FC; /* Soft warm ivory white */
+    --surface: #1F1928;    /* Velvet plum card surface */
+    --muted: #A397B5;      /* Lavender slate */
+    --border: #352B44;     /* Deep violet border */
   }
 }
 
@@ -23,5 +27,5 @@ body {
 }
 
 .bento-card {
-  @apply bg-[var(--surface)] rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors duration-300;
+  @apply bg-[var(--surface)] rounded-3xl shadow-sm border border-[var(--border)] overflow-hidden transition-colors duration-300;
 }
