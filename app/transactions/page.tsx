@@ -15,7 +15,7 @@ const getCategoryIcon = (categoryName: string, categories: any[]) => {
 };
 
 export default function TransactionsPage() {
-  const { pages, transactions, categories, setTransactions, formatAmount } = useUser();
+  const { pages, transactions, categories, setTransactions, formatAmount, resetAllPockets } = useUser();
   const pageMeta = pages.find(p => p.id === 'transactions');
 
   // Filter States
@@ -440,14 +440,15 @@ export default function TransactionsPage() {
       {/* Modal Reset All Data */}
       <ConfirmModal 
         isOpen={isResetConfirmOpen}
-        title="Hapus Seluruh Data Transaksi"
-        message="Apakah Anda yakin ingin menghapus seluruh data transaksi? Tindakan ini tidak dapat dibatalkan."
-        confirmText="Ya, Hapus Semua"
+        title="Reset Seluruh Data Transaksi & Pocket"
+        message="Apakah Anda yakin ingin menghapus seluruh data transaksi? Seluruh saldo pocket juga akan di-reset menjadi Rp 0 secara real-time. Tindakan ini tidak dapat dibatalkan."
+        confirmText="Ya, Reset Semua Menjadi 0"
         cancelText="Batal"
         onCancel={() => setIsResetConfirmOpen(false)}
         onConfirm={async () => {
           await supabase.from('transactions').delete().neq('id', 0);
           setTransactions([]);
+          await resetAllPockets();
           setIsResetConfirmOpen(false);
         }}
         isDestructive={true}

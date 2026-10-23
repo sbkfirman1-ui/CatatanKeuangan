@@ -190,6 +190,7 @@ type UserContextType = {
   deletePocket: (id: string) => void;
   allocatePocketFunds: (pocketId: string, amount: number, type: 'deposit' | 'withdraw', notes?: string) => void;
   transferPocketFunds: (fromPocketId: string, toPocketId: string, amount: number, notes?: string) => void;
+  resetAllPockets: () => Promise<void> | void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   isAppLocked: boolean;
@@ -320,9 +321,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
               const totalExp = (txs || []).filter((t: any) => t.type === 'expense').reduce((acc: number, t: any) => acc + Math.abs(t.amount), 0);
               const netCash = totalInc - totalExp;
 
-              const otherAllocated = fullPockets.filter(p => p.id !== 'pocket-utama' && p.type !== 'main').reduce((acc, p) => acc + (p.balance || 0), 0);
-              const calculatedMainBal = netCash <= 0 ? 0 : Math.max(0, netCash - otherAllocated);
-              fullPockets = fullPockets.map(p => (p.id === 'pocket-utama' || p.type === 'main') ? { ...p, balance: calculatedMainBal } : p);
+              // If transactions are completely empty or netCash <= 0, ensure all pockets are reset to 0
+              if (!txs || txs.length === 0 || netCash <= 0) {
+                fullPockets = fullPockets.map(p => ({ ...p, balance: 0 }));
+              } else {
+                const otherAllocated = fullPockets.filter(p => p.id !== 'pocket-utama' && p.type !== 'main').reduce((acc, p) => acc + (p.balance || 0), 0);
+                const calculatedMainBal = Math.max(0, netCash - otherAllocated);
+                fullPockets = fullPockets.map(p => (p.id === 'pocket-utama' || p.type === 'main') ? { ...p, balance: calculatedMainBal } : p);
+              }
 
               setPockets(fullPockets);
               localStorage.setItem('pockets', JSON.stringify(fullPockets));
@@ -343,9 +349,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     };
     fetchData();
 
-    // Supabase Realtime listener to synchronize pockets across devices (Desktop, HP, Tab)
+    // Supabase Realtime listener to synchronize pockets & transactions across devices (Desktop, HP, Tab)
     const realtimeChannel = supabase
-      .channel('realtime_pockets_sync')
+      .channel('realtime_app_sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_items' }, (payload) => {
         const row = payload.new as any;
         if (row && (row.id === SYSTEM_POCKETS_ID || row.name === SYSTEM_POCKETS_NAME) && row.store) {
@@ -359,6 +365,16 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           } catch (e) {
             console.error('Realtime sync parse error:', e);
           }
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, async () => {
+        const { data: updatedTxs } = await supabase
+          .from('transactions')
+          .select('*')
+          .order('date', { ascending: false })
+          .order('id', { ascending: false });
+        if (updatedTxs) {
+          setTransactions(updatedTxs);
         }
       })
       .subscribe();
@@ -599,6 +615,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const resetAllPockets = async () => {
+    setPockets(prev => {
+      const zeroed = prev.map(p => ({
+        ...p,
+        balance: 0,
+        history: []
+      }));
+      localStorage.setItem('pockets', JSON.stringify(zeroed));
+      savePocketsToRemote(zeroed);
+      return zeroed;
+    });
+  };
+
   const contextValue = useMemo(() => ({
     userName, setUserName, 
     userIcon, setUserIcon, 
@@ -609,7 +638,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     shoppingItems, setShoppingItems,
     pockets: integratedPockets, 
     setPockets,
-    addPocket, updatePocket, deletePocket, allocatePocketFunds, transferPocketFunds,
+    addPocket, updatePocket, deletePocket, allocatePocketFunds, transferPocketFunds, resetAllPockets,
     theme, toggleTheme,
     isAppLocked, setIsAppLocked,
     isBalanceHidden, setIsBalanceHidden,
