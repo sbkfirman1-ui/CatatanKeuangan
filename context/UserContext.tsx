@@ -58,7 +58,7 @@ export type PocketHistoryItem = {
 export type PocketMeta = {
   id: string;
   name: string;
-  type: 'saving' | 'budget';
+  type: 'main' | 'saving' | 'budget';
   balance: number;
   targetAmount?: number;
   icon: string;
@@ -69,6 +69,18 @@ export type PocketMeta = {
 };
 
 export const DEFAULT_POCKETS: PocketMeta[] = [
+  {
+    id: 'pocket-utama',
+    name: 'Pocket Utama',
+    type: 'main',
+    balance: 0,
+    targetAmount: 0,
+    icon: 'Wallet',
+    color: 'purple',
+    notes: 'Penghimpun dana utama & kas induk untuk dialokasikan ke pocket lainnya',
+    createdAt: new Date().toISOString(),
+    history: []
+  },
   {
     id: 'pocket-istri',
     name: 'Uang Istri',
@@ -119,6 +131,25 @@ export const DEFAULT_POCKETS: PocketMeta[] = [
   }
 ];
 
+export const ensureMainPocket = (pocketList: PocketMeta[]): PocketMeta[] => {
+  if (!pocketList.some(p => p.id === 'pocket-utama' || p.type === 'main')) {
+    const mainPocket: PocketMeta = {
+      id: 'pocket-utama',
+      name: 'Pocket Utama',
+      type: 'main',
+      balance: 0,
+      targetAmount: 0,
+      icon: 'Wallet',
+      color: 'purple',
+      notes: 'Penghimpun dana utama & kas induk untuk dialokasikan ke pocket lainnya',
+      createdAt: new Date().toISOString(),
+      history: []
+    };
+    return [mainPocket, ...pocketList];
+  }
+  return pocketList;
+};
+
 const SYSTEM_POCKETS_ID = 999999999;
 const SYSTEM_POCKETS_NAME = '__SYSTEM_POCKETS__';
 
@@ -158,6 +189,7 @@ type UserContextType = {
   updatePocket: (id: string, updates: Partial<PocketMeta>) => void;
   deletePocket: (id: string) => void;
   allocatePocketFunds: (pocketId: string, amount: number, type: 'deposit' | 'withdraw', notes?: string) => void;
+  transferPocketFunds: (fromPocketId: string, toPocketId: string, amount: number, notes?: string) => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   isAppLocked: boolean;
@@ -168,7 +200,8 @@ type UserContextType = {
   formatAmount: (amount: number, prefix?: string) => string;
   isTxModalOpen: boolean;
   setIsTxModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  openTxModal: () => void;
+  txModalConfig?: { type?: 'expense' | 'income'; pocketId?: string };
+  openTxModal: (type?: 'expense' | 'income' | any, pocketId?: string) => void;
 };
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -199,8 +232,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [isAppLocked, setIsAppLocked] = useState(true); // Start locked (showing intro)
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
+  const [txModalConfig, setTxModalConfig] = useState<{ type?: 'expense' | 'income'; pocketId?: string }>({});
 
-  const openTxModal = () => setIsTxModalOpen(true);
+  const openTxModal = (type?: 'expense' | 'income' | any, pocketId?: string) => {
+    const validType = type === 'expense' || type === 'income' ? type : undefined;
+    setTxModalConfig({ type: validType, pocketId });
+    setIsTxModalOpen(true);
+  };
 
   useEffect(() => {
     // Check if user has a preference in localStorage or system
@@ -253,7 +291,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       try {
         const parsed = JSON.parse(savedPockets);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setPockets(parsed);
+          const ensured = ensureMainPocket(parsed);
+          setPockets(ensured);
         }
       } catch (e) {}
     }
@@ -274,8 +313,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           try {
             const parsed = JSON.parse(pocketRow.store);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setPockets(parsed);
-              localStorage.setItem('pockets', JSON.stringify(parsed));
+              let fullPockets = ensureMainPocket(parsed);
+              
+              // Synchronize Pocket Utama with net cash
+              const totalInc = (txs || []).filter((t: any) => t.type === 'income').reduce((acc: number, t: any) => acc + Math.abs(t.amount), 0);
+              const totalExp = (txs || []).filter((t: any) => t.type === 'expense').reduce((acc: number, t: any) => acc + Math.abs(t.amount), 0);
+              const netCash = totalInc - totalExp;
+
+              const otherAllocated = fullPockets.filter(p => p.id !== 'pocket-utama' && p.type !== 'main').reduce((acc, p) => acc + (p.balance || 0), 0);
+              const calculatedMainBal = netCash <= 0 ? 0 : Math.max(0, netCash - otherAllocated);
+              fullPockets = fullPockets.map(p => (p.id === 'pocket-utama' || p.type === 'main') ? { ...p, balance: calculatedMainBal } : p);
+
+              setPockets(fullPockets);
+              localStorage.setItem('pockets', JSON.stringify(fullPockets));
+              savePocketsToRemote(fullPockets);
             }
           } catch (e) {
             console.error('Error parsing remote pockets:', e);
@@ -301,8 +352,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           try {
             const remotePockets = JSON.parse(row.store);
             if (Array.isArray(remotePockets) && remotePockets.length > 0) {
-              setPockets(remotePockets);
-              localStorage.setItem('pockets', JSON.stringify(remotePockets));
+              const fullPockets = ensureMainPocket(remotePockets);
+              setPockets(fullPockets);
+              localStorage.setItem('pockets', JSON.stringify(fullPockets));
             }
           } catch (e) {
             console.error('Realtime sync parse error:', e);
@@ -392,6 +444,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deletePocket = (id: string) => {
+    if (id === 'pocket-utama') return; // Cannot delete Pocket Utama
     setPockets(prev => {
       const updated = prev.filter(p => p.id !== id);
       localStorage.setItem('pockets', JSON.stringify(updated));
@@ -400,15 +453,61 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  // 1. Total Cash Balance from Transactions
+  const totalIncome = useMemo(() => {
+    return transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + Math.abs(t.amount), 0);
+  }, [transactions]);
+
+  const totalExpense = useMemo(() => {
+    return transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + Math.abs(t.amount), 0);
+  }, [transactions]);
+
+  const totalCashFlow = totalIncome - totalExpense;
+
+  // 2. Total allocated to sub-pockets (excluding Pocket Utama)
+  const totalSubPocketsAllocated = useMemo(() => {
+    return pockets
+      .filter(p => p.id !== 'pocket-utama' && p.type !== 'main')
+      .reduce((acc, p) => acc + (p.balance || 0), 0);
+  }, [pockets]);
+
+  // 3. Dynamic Pocket Utama Balance:
+  // INTEGRASI KAS & POCKET UTAMA:
+  // - Bila Saldo Kas <= 0, Pocket Utama strictly bernilai 0
+  // - Bila Saldo Kas > 0, Pocket Utama = Math.max(0, totalCashFlow - totalSubPocketsAllocated)
+  const mainPocketBalance = useMemo(() => {
+    if (totalCashFlow <= 0) return 0;
+    return Math.max(0, totalCashFlow - totalSubPocketsAllocated);
+  }, [totalCashFlow, totalSubPocketsAllocated]);
+
+  // 4. Integrated Pockets exposed to all components
+  const integratedPockets = useMemo(() => {
+    return pockets.map(p => {
+      if (p.id === 'pocket-utama' || p.type === 'main') {
+        return {
+          ...p,
+          balance: mainPocketBalance
+        };
+      }
+      return p;
+    });
+  }, [pockets, mainPocketBalance]);
+
   const allocatePocketFunds = (pocketId: string, amount: number, type: 'deposit' | 'withdraw', notes?: string) => {
     setPockets(prev => {
+      const isTargetMain = pocketId === 'pocket-utama';
       const updated = prev.map(p => {
-        if (p.id !== pocketId) return p;
+        const isThisMain = p.id === 'pocket-utama' || p.type === 'main';
+        if (p.id !== pocketId && !(isTargetMain && isThisMain)) return p;
+        
         const delta = type === 'deposit' ? amount : -amount;
-        const newBalance = Math.max(0, (p.balance || 0) + delta);
+        const newBalance = isThisMain 
+          ? mainPocketBalance 
+          : Math.max(0, (p.balance || 0) + delta);
+
         const historyItem: PocketHistoryItem = {
           id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          pocketId,
+          pocketId: p.id,
           pocketName: p.name,
           pocketIcon: p.icon,
           pocketColor: p.color,
@@ -429,6 +528,77 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const transferPocketFunds = (
+    fromPocketId: string, 
+    toPocketId: string, 
+    amount: number, 
+    notes?: string
+  ) => {
+    if (fromPocketId === toPocketId || amount <= 0) return;
+    
+    setPockets(prev => {
+      const fromPocket = prev.find(p => p.id === fromPocketId || (fromPocketId === 'pocket-utama' && p.type === 'main'));
+      const toPocket = prev.find(p => p.id === toPocketId || (toPocketId === 'pocket-utama' && p.type === 'main'));
+      if (!fromPocket || !toPocket) return prev;
+
+      const isFromMain = fromPocket.id === 'pocket-utama' || fromPocket.type === 'main';
+      const isToMain = toPocket.id === 'pocket-utama' || toPocket.type === 'main';
+
+      const fromBal = isFromMain ? mainPocketBalance : (fromPocket.balance || 0);
+      if (amount > fromBal) return prev;
+
+      const now = new Date().toISOString();
+      const transferNoteFrom = notes ? `Alokasi ke ${toPocket.name}: ${notes}` : `Alokasi dana ke ${toPocket.name}`;
+      const transferNoteTo = notes ? `Alokasi dari ${fromPocket.name}: ${notes}` : `Alokasi masuk dari ${fromPocket.name}`;
+
+      const fromHist: PocketHistoryItem = {
+        id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 6)}-out`,
+        pocketId: fromPocket.id,
+        pocketName: fromPocket.name,
+        pocketIcon: fromPocket.icon,
+        pocketColor: fromPocket.color,
+        type: 'withdraw',
+        amount,
+        notes: transferNoteFrom,
+        date: now
+      };
+
+      const toHist: PocketHistoryItem = {
+        id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 6)}-in`,
+        pocketId: toPocket.id,
+        pocketName: toPocket.name,
+        pocketIcon: toPocket.icon,
+        pocketColor: toPocket.color,
+        type: 'deposit',
+        amount,
+        notes: transferNoteTo,
+        date: now
+      };
+
+      const updated = prev.map(p => {
+        if (p.id === fromPocket.id) {
+          return {
+            ...p,
+            balance: isFromMain ? Math.max(0, mainPocketBalance - amount) : Math.max(0, (p.balance || 0) - amount),
+            history: [fromHist, ...(p.history || [])]
+          };
+        }
+        if (p.id === toPocket.id) {
+          return {
+            ...p,
+            balance: isToMain ? mainPocketBalance + amount : (p.balance || 0) + amount,
+            history: [toHist, ...(p.history || [])]
+          };
+        }
+        return p;
+      });
+
+      localStorage.setItem('pockets', JSON.stringify(updated));
+      savePocketsToRemote(updated);
+      return updated;
+    });
+  };
+
   const contextValue = useMemo(() => ({
     userName, setUserName, 
     userIcon, setUserIcon, 
@@ -437,15 +607,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     categories, setCategories,
     transactions, setTransactions,
     shoppingItems, setShoppingItems,
-    pockets, setPockets,
-    addPocket, updatePocket, deletePocket, allocatePocketFunds,
+    pockets: integratedPockets, 
+    setPockets,
+    addPocket, updatePocket, deletePocket, allocatePocketFunds, transferPocketFunds,
     theme, toggleTheme,
     isAppLocked, setIsAppLocked,
     isBalanceHidden, setIsBalanceHidden,
     toggleBalanceVisibility,
     formatAmount,
-    isTxModalOpen, setIsTxModalOpen, openTxModal
-  }), [userName, userIcon, pages, dashboardLabels, categories, transactions, shoppingItems, pockets, theme, isAppLocked, isBalanceHidden, isTxModalOpen]);
+    isTxModalOpen, setIsTxModalOpen, openTxModal,
+    txModalConfig
+  }), [userName, userIcon, pages, dashboardLabels, categories, transactions, shoppingItems, integratedPockets, theme, isAppLocked, isBalanceHidden, isTxModalOpen, txModalConfig]);
 
   return (
     <UserContext.Provider value={contextValue}>

@@ -4,7 +4,7 @@ import {
   Wallet, PiggyBank, Shield, Target, Coins, Plane, Coffee, Heart, 
   ShoppingBag, Sparkles, Plus, ArrowUpRight, ArrowDownLeft, 
   MoreVertical, Edit2, Trash2, History, Check, AlertCircle, TrendingUp, Info, X,
-  Search, Calendar, RotateCcw
+  Search, Calendar, RotateCcw, ArrowRightLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, PocketMeta } from '@/context/UserContext';
@@ -71,7 +71,7 @@ const COLOR_PRESETS: Record<string, { bg: string; text: string; border: string; 
 };
 
 export default function PocketPage() {
-  const { pages, transactions, pockets, addPocket, updatePocket, deletePocket, allocatePocketFunds, formatAmount } = useUser();
+  const { pages, transactions, pockets, addPocket, updatePocket, deletePocket, allocatePocketFunds, transferPocketFunds, formatAmount, openTxModal } = useUser();
   const pageMeta = pages.find(p => p.id === 'pocket');
 
   // Filter Tabs
@@ -93,9 +93,17 @@ export default function PocketPage() {
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // Transfer / Bagi Dana Modal States
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferFromId, setTransferFromId] = useState('');
+  const [transferToId, setTransferToId] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferNotes, setTransferNotes] = useState('');
+  const [transferError, setTransferError] = useState('');
+
   // Form States for Create/Edit Pocket
   const [formName, setFormName] = useState('');
-  const [formType, setFormType] = useState<'saving' | 'budget'>('saving');
+  const [formType, setFormType] = useState<'main' | 'saving' | 'budget'>('saving');
   const [formTarget, setFormTarget] = useState('');
   const [formInitialBalance, setFormInitialBalance] = useState('');
   const [formIcon, setFormIcon] = useState('Wallet');
@@ -180,11 +188,23 @@ export default function PocketPage() {
 
   const unallocatedCash = totalCashFlow - totalAllocated;
 
-  // Filtered Pockets
+  // Main Pocket (Treasury)
+  const mainPocket = useMemo(() => {
+    return pockets.find(p => p.type === 'main' || p.id === 'pocket-utama') || pockets[0];
+  }, [pockets]);
+
+  // Filtered Sub Pockets
   const filteredPockets = useMemo(() => {
-    if (activeTab === 'all') return pockets;
-    return pockets.filter(p => p.type === activeTab);
-  }, [pockets, activeTab]);
+    const subPockets = pockets.filter(p => p.id !== mainPocket?.id);
+    if (activeTab === 'all') return subPockets;
+    return subPockets.filter(p => p.type === activeTab);
+  }, [pockets, activeTab, mainPocket]);
+
+  // Total in Sub Pockets (Budget & Savings)
+  const totalSubPocketsAllocated = useMemo(() => {
+    const subPockets = pockets.filter(p => p.id !== mainPocket?.id);
+    return subPockets.reduce((acc, p) => acc + (p.balance || 0), 0);
+  }, [pockets, mainPocket]);
 
   // Aggregated Mutations across all Pockets
   const allPocketMutations = useMemo(() => {
@@ -324,13 +344,80 @@ export default function PocketPage() {
       return;
     }
 
-    if (fundAction === 'withdraw' && amountNum > (fundPocket.balance || 0)) {
-      setFundError(`Saldo pocket tidak mencukupi (Maks: ${formatAmount(fundPocket.balance || 0)})`);
+    const isMain = fundPocket.id === 'pocket-utama' || fundPocket.type === 'main';
+
+    if (isMain) {
+      if (fundAction === 'withdraw' && amountNum > (fundPocket.balance || 0)) {
+        setFundError(`Saldo Pocket Utama tidak mencukupi (Maks: ${formatAmount(fundPocket.balance || 0)})`);
+        return;
+      }
+      setIsFundModalOpen(false);
+      openTxModal(fundAction === 'deposit' ? 'income' : 'expense', fundPocket.id);
       return;
     }
 
-    allocatePocketFunds(fundPocket.id, amountNum, fundAction, fundNotes.trim());
+    if (fundAction === 'withdraw') {
+      if (amountNum > (fundPocket.balance || 0)) {
+        setFundError(`Saldo ${fundPocket.name} tidak mencukupi (Maks: ${formatAmount(fundPocket.balance || 0)})`);
+        return;
+      }
+      transferPocketFunds(
+        fundPocket.id, 
+        mainPocket.id, 
+        amountNum, 
+        fundNotes.trim() || `Tarik saldo ${fundPocket.name} ke Pocket Utama`
+      );
+    } else {
+      if (amountNum > (mainPocket?.balance || 0)) {
+        setFundError(`Saldo Pocket Utama tidak mencukupi (Tersedia: ${formatAmount(mainPocket?.balance || 0)})`);
+        return;
+      }
+      transferPocketFunds(
+        mainPocket.id, 
+        fundPocket.id, 
+        amountNum, 
+        fundNotes.trim() || `Isi saldo ${fundPocket.name} dari Pocket Utama`
+      );
+    }
+
     setIsFundModalOpen(false);
+  };
+
+  // Open Transfer / Bagi Dana Modal
+  const handleOpenTransferModal = (sourcePocket?: PocketMeta) => {
+    const fromId = sourcePocket ? sourcePocket.id : (mainPocket?.id || pockets[0]?.id || '');
+    setTransferFromId(fromId);
+    const defaultTarget = pockets.find(p => p.id !== fromId);
+    setTransferToId(defaultTarget ? defaultTarget.id : '');
+    setTransferAmount('');
+    setTransferNotes('');
+    setTransferError('');
+    setIsTransferModalOpen(true);
+  };
+
+  // Submit Transfer / Bagi Dana
+  const handleSubmitTransfer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferFromId || !transferToId) {
+      setTransferError('Pilih pocket asal dan pocket tujuan');
+      return;
+    }
+    if (transferFromId === transferToId) {
+      setTransferError('Pocket asal dan tujuan tidak boleh sama');
+      return;
+    }
+    const amountNum = parseFloat(transferAmount.replace(/\D/g, ''));
+    if (!amountNum || amountNum <= 0) {
+      setTransferError('Masukkan nominal transfer yang valid');
+      return;
+    }
+    const sourcePocket = pockets.find(p => p.id === transferFromId);
+    if (sourcePocket && amountNum > (sourcePocket.balance || 0)) {
+      setTransferError(`Saldo ${sourcePocket.name} tidak mencukupi (Maks: ${formatAmount(sourcePocket.balance || 0)})`);
+      return;
+    }
+    transferPocketFunds(transferFromId, transferToId, amountNum, transferNotes.trim());
+    setIsTransferModalOpen(false);
   };
 
   return (
@@ -351,13 +438,23 @@ export default function PocketPage() {
           </p>
         </div>
 
-        <button 
-          onClick={handleOpenCreateModal}
-          className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-5 py-3 rounded-2xl font-bold transition-all shadow-md active:scale-95 cursor-pointer w-full sm:w-auto justify-center"
-        >
-          <Plus size={18} />
-          <span>Buat Pocket Baru</span>
-        </button>
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <button 
+            type="button"
+            onClick={() => handleOpenTransferModal(mainPocket)}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white dark:bg-gray-800 text-secondary dark:text-white border border-gray-200 dark:border-gray-700 hover:border-primary px-4 py-3 rounded-2xl font-bold transition-all shadow-xs active:scale-95 cursor-pointer text-sm"
+          >
+            <ArrowRightLeft size={16} className="text-primary" />
+            <span>Bagi Dana</span>
+          </button>
+          <button 
+            onClick={handleOpenCreateModal}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white px-5 py-3 rounded-2xl font-bold transition-all shadow-md active:scale-95 cursor-pointer text-sm"
+          >
+            <Plus size={18} />
+            <span>Buat Pocket Baru</span>
+          </button>
+        </div>
       </header>
 
       {/* Top Bento Stats Overview */}
@@ -378,36 +475,36 @@ export default function PocketPage() {
           </div>
         </div>
 
-        {/* Total Allocated to Pockets */}
+        {/* Saldo Pocket Utama */}
         <div className="bento-card p-5 bg-[var(--surface)] border border-[var(--border)] rounded-3xl shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-gray-400 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Terkunci di Pocket</span>
-            <div className="w-8 h-8 rounded-xl bg-primary/10 dark:bg-primary/25 text-primary flex items-center justify-center">
-              <Wallet size={16} />
-            </div>
-          </div>
-          <div>
-            <h3 className="text-2xl font-extrabold text-primary dark:text-[#C5B3E6]">
-              {formatAmount(totalAllocated)}
-            </h3>
-            <p className="text-[11px] text-gray-400 mt-1">Total dari {pockets.length} pos pocket</p>
-          </div>
-        </div>
-
-        {/* Unallocated Cash */}
-        <div className="bento-card p-5 bg-[var(--surface)] border border-[var(--border)] rounded-3xl shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-gray-400 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Sisa Dana Bebas</span>
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${unallocatedCash >= 0 ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-950/40 text-red-600'}`}>
+            <span className="text-xs font-bold uppercase tracking-wider">Saldo Pocket Utama</span>
+            <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-primary flex items-center justify-center">
               <Sparkles size={16} />
             </div>
           </div>
           <div>
-            <h3 className={`text-2xl font-extrabold ${unallocatedCash >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
-              {formatAmount(unallocatedCash)}
+            <h3 className="text-2xl font-extrabold text-primary dark:text-[#C5B3E6]">
+              {formatAmount(mainPocket?.balance || 0)}
+            </h3>
+            <p className="text-[11px] text-gray-400 mt-1">Kas Induk Penghimpun Dana</p>
+          </div>
+        </div>
+
+        {/* Pos Anggaran & Tabungan */}
+        <div className="bento-card p-5 bg-[var(--surface)] border border-[var(--border)] rounded-3xl shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-gray-400 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider">Pos Anggaran & Tabungan</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <Wallet size={16} />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
+              {formatAmount(totalSubPocketsAllocated)}
             </h3>
             <p className="text-[11px] text-gray-400 mt-1">
-              {unallocatedCash >= 0 ? 'Bisa dialokasikan ke pocket' : 'Alokasi melebihi saldo kas'}
+              Terbagi di {filteredPockets.length} pos cabang
             </p>
           </div>
         </div>
@@ -425,11 +522,94 @@ export default function PocketPage() {
               {pockets.length} <span className="text-sm font-semibold text-gray-400">Kantong</span>
             </h3>
             <p className="text-[11px] text-gray-400 mt-1">
-              {pockets.filter(p => p.type === 'saving').length} Tabungan • {pockets.filter(p => p.type === 'budget').length} Anggaran
+              1 Utama • {filteredPockets.filter(p => p.type === 'saving').length} Tabungan • {filteredPockets.filter(p => p.type === 'budget').length} Anggaran
             </p>
           </div>
         </div>
       </div>
+
+      {/* Pocket Utama - Dedicated Main Treasury Showcase */}
+      {mainPocket && (
+        <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#705994] via-[#5F4684] to-[#48336A] text-white p-6 sm:p-8 shadow-xl border border-white/10 mb-8 transition-all">
+          {/* Subtle decorative circles */}
+          <div className="absolute -right-16 -top-16 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -left-16 -bottom-16 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+            <div className="max-w-xl">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <span className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-md text-white text-[11px] font-extrabold px-3 py-1 rounded-full border border-white/20 uppercase tracking-wider">
+                  <Sparkles size={13} className="text-amber-300" />
+                  Pocket Utama • Penghimpun Dana
+                </span>
+                <span className="bg-emerald-400/20 text-emerald-200 border border-emerald-400/30 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                  Kas Induk
+                </span>
+              </div>
+
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white mb-1">
+                {mainPocket.name}
+              </h2>
+              <p className="text-white/80 text-xs sm:text-sm leading-relaxed mb-4">
+                {mainPocket.notes || 'Penghimpun dana utama & kas induk untuk dialokasikan ke pocket lainnya.'}
+              </p>
+
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-white/70 block mb-1">
+                  Saldo Kas Penghimpun Saat Ini
+                </span>
+                <div className="flex items-baseline gap-2">
+                  <h3 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                    {formatAmount(mainPocket.balance || 0)}
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions for Pocket Utama */}
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full lg:w-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => handleOpenTransferModal(mainPocket)}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white text-primary hover:bg-white/95 px-5 py-3.5 rounded-2xl font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                <ArrowRightLeft size={16} />
+                <span>Bagi Dana ke Pocket</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openTxModal('income', mainPocket.id)}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-white/15 hover:bg-white/25 text-white border border-white/20 px-4 py-3.5 rounded-2xl font-bold text-xs sm:text-sm backdrop-blur-sm transition-all active:scale-95 cursor-pointer"
+              >
+                <Plus size={16} />
+                <span>Isi Kas</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openTxModal('expense', mainPocket.id)}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/15 px-3.5 py-3.5 rounded-2xl font-bold text-xs sm:text-sm backdrop-blur-sm transition-all active:scale-95 cursor-pointer"
+              >
+                <ArrowDownLeft size={16} />
+                <span>Tarik</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryPocket(mainPocket);
+                  setIsHistoryModalOpen(true);
+                }}
+                className="p-3.5 bg-white/10 hover:bg-white/20 text-white border border-white/15 rounded-2xl transition-all cursor-pointer shrink-0"
+                title="Riwayat Aliran Dana Pocket Utama"
+              >
+                <History size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter Tabs & Quick Info */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -438,19 +618,19 @@ export default function PocketPage() {
             onClick={() => setActiveTab('all')}
             className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${activeTab === 'all' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-primary'}`}
           >
-            Semua Pocket ({pockets.length})
+            Semua Pocket ({filteredPockets.length})
           </button>
           <button
             onClick={() => setActiveTab('saving')}
             className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${activeTab === 'saving' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-primary'}`}
           >
-            Tabungan & Goals ({pockets.filter(p => p.type === 'saving').length})
+            Tabungan & Goals ({filteredPockets.filter(p => p.type === 'saving').length})
           </button>
           <button
             onClick={() => setActiveTab('budget')}
             className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${activeTab === 'budget' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-primary'}`}
           >
-            Pos Anggaran ({pockets.filter(p => p.type === 'budget').length})
+            Pos Anggaran ({filteredPockets.filter(p => p.type === 'budget').length})
           </button>
         </div>
 
@@ -924,30 +1104,37 @@ export default function PocketPage() {
 
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1.5">TIPE POCKET</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormType('saving')}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
-                      formType === 'saving'
-                        ? 'bg-primary text-white border-primary shadow-sm'
-                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
-                    }`}
-                  >
-                    🎯 Tabungan / Target
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormType('budget')}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
-                      formType === 'budget'
-                        ? 'bg-primary text-white border-primary shadow-sm'
-                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
-                    }`}
-                  >
-                    🛒 Pos Anggaran Bulanan
-                  </button>
-                </div>
+                {editingPocket?.type === 'main' ? (
+                  <div className="p-3 bg-purple-50 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-800/40 text-xs font-bold text-primary dark:text-[#C5B3E6] flex items-center gap-2">
+                    <Sparkles size={14} className="text-primary" />
+                    <span>Pocket Utama (Penghimpun Dana & Kas Induk)</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormType('saving')}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                        formType === 'saving'
+                          ? 'bg-primary text-white border-primary shadow-sm'
+                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                      }`}
+                    >
+                      🎯 Tabungan / Target
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormType('budget')}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                        formType === 'budget'
+                          ? 'bg-primary text-white border-primary shadow-sm'
+                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                      }`}
+                    >
+                      🛒 Pos Anggaran Bulanan
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1116,9 +1303,9 @@ export default function PocketPage() {
 
               {fundAction === 'deposit' && (
                 <div className="text-[11px] text-gray-400 flex justify-between">
-                  <span>Sisa Dana Bebas:</span>
-                  <span className={`font-semibold ${unallocatedCash >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                    {formatAmount(unallocatedCash)}
+                  <span>Sumber Dana (Pocket Utama):</span>
+                  <span className={`font-semibold ${(mainPocket?.balance || 0) > 0 ? 'text-primary dark:text-[#C5B3E6]' : 'text-red-500'}`}>
+                    {formatAmount(mainPocket?.balance || 0)}
                   </span>
                 </div>
               )}
@@ -1163,16 +1350,16 @@ export default function PocketPage() {
                     +{(quickVal / 1000).toLocaleString('id-ID')}rb
                   </button>
                 ))}
-                {fundAction === 'deposit' && unallocatedCash > 0 && (
+                {fundAction === 'deposit' && (mainPocket?.balance || 0) > 0 && (
                   <button
                     type="button"
                     onClick={() => {
-                      setFundAmount(Math.max(0, unallocatedCash).toLocaleString('id-ID'));
+                      setFundAmount((mainPocket?.balance || 0).toLocaleString('id-ID'));
                       setFundError('');
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold transition-colors cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-primary dark:text-[#C5B3E6] text-[11px] font-semibold transition-colors cursor-pointer"
                   >
-                    Semua Sisa Bebas
+                    Semua Saldo Pocket Utama
                   </button>
                 )}
                 {fundAction === 'withdraw' && fundPocket.balance > 0 && (
@@ -1284,6 +1471,172 @@ export default function PocketPage() {
             >
               Tutup
             </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal Transfer / Bagi Dana Pocket */}
+      {isTransferModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[var(--surface)] text-[var(--foreground)] w-full max-w-md rounded-[2rem] p-6 shadow-2xl border border-[var(--border)] relative z-10"
+          >
+            <div className="flex justify-between items-center mb-5 pb-4 border-b border-[var(--border)]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20">
+                  <ArrowRightLeft size={18} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-secondary dark:text-white">
+                    Bagi & Alokasikan Dana
+                  </h3>
+                  <p className="text-xs text-gray-400">Transfer saldo antar-pocket secara instan</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsTransferModalOpen(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-xl cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitTransfer} className="flex flex-col gap-4">
+              {transferError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs rounded-xl font-medium border border-red-200 dark:border-red-900/40">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{transferError}</span>
+                </div>
+              )}
+
+              {/* Source Pocket */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Dari Pocket (Sumber Dana)
+                </label>
+                <select
+                  value={transferFromId}
+                  onChange={(e) => {
+                    setTransferFromId(e.target.value);
+                    setTransferError('');
+                  }}
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-[var(--border)] rounded-xl px-3.5 py-2.5 text-xs font-semibold text-secondary dark:text-white outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+                >
+                  {pockets.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.type === 'main' ? '(⭐ Pocket Utama)' : ''} — Saldo: {formatAmount(p.balance || 0)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Target Pocket */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Ke Pocket Tujuan (Penerima Alokasi)
+                </label>
+                <select
+                  value={transferToId}
+                  onChange={(e) => {
+                    setTransferToId(e.target.value);
+                    setTransferError('');
+                  }}
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-[var(--border)] rounded-xl px-3.5 py-2.5 text-xs font-semibold text-secondary dark:text-white outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+                >
+                  <option value="" disabled>Pilih Pocket Tujuan...</option>
+                  {pockets.filter(p => p.id !== transferFromId).map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.type === 'main' ? '(⭐ Pocket Utama)' : `(${p.type === 'budget' ? 'Pos Anggaran' : 'Pos Tabungan'})`} — Saldo: {formatAmount(p.balance || 0)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Amount Input */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Nominal Transfer (Rp)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">Rp</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={transferAmount}
+                    onChange={(e) => {
+                      const formatted = formatNumberInput(e.target.value);
+                      setTransferAmount(formatted);
+                      setTransferError('');
+                    }}
+                    placeholder="0"
+                    required
+                    className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-[var(--border)] bg-white dark:bg-gray-800 text-secondary dark:text-white outline-none focus:ring-2 focus:ring-primary text-base font-bold"
+                  />
+                </div>
+
+                {/* Quick Amount Chips */}
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[100000, 250000, 500000, 1000000, 2000000].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setTransferAmount(val.toLocaleString('id-ID'))}
+                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-lg text-[10px] font-bold text-gray-600 dark:text-gray-300 transition-colors cursor-pointer"
+                    >
+                      {val >= 1000000 ? `${val / 1000000} Jt` : `${val / 1000} rb`}
+                    </button>
+                  ))}
+                  {(() => {
+                    const src = pockets.find(p => p.id === transferFromId);
+                    if (src && src.balance > 0) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setTransferAmount((src.balance || 0).toLocaleString('id-ID'))}
+                          className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-[10px] font-extrabold transition-colors cursor-pointer"
+                        >
+                          Semua Saldo
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Catatan Alokasi (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={transferNotes}
+                  onChange={(e) => setTransferNotes(e.target.value)}
+                  placeholder="Contoh: Alokasi gaji bulanan, jatah belanja dll"
+                  className="w-full px-3.5 py-2 rounded-xl border border-[var(--border)] bg-white dark:bg-gray-800 text-secondary dark:text-white outline-none focus:ring-2 focus:ring-primary text-xs font-medium"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsTransferModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-primary hover:bg-primary-hover text-white transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <ArrowRightLeft size={14} />
+                  <span>Konfirmasi Bagi Dana</span>
+                </button>
+              </div>
+            </form>
           </motion.div>
         </div>
       )}

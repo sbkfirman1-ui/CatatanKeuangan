@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Check, Wallet, AlertTriangle, ChevronDown, 
@@ -31,7 +31,8 @@ export default function TransactionModal() {
     setTransactions, 
     pockets, 
     allocatePocketFunds, 
-    formatAmount 
+    formatAmount,
+    txModalConfig
   } = useUser();
 
   const [txType, setTxType] = useState<'expense' | 'income'>('expense');
@@ -41,6 +42,13 @@ export default function TransactionModal() {
   const [isPocketDropdownOpen, setIsPocketDropdownOpen] = useState(false);
   const [txNotes, setTxNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isTxModalOpen) {
+      if (txModalConfig?.type) setTxType(txModalConfig.type);
+      if (txModalConfig?.pocketId) setTxPocketId(txModalConfig.pocketId);
+    }
+  }, [isTxModalOpen, txModalConfig]);
 
   if (!isTxModalOpen) return null;
 
@@ -54,9 +62,11 @@ export default function TransactionModal() {
   };
 
   const numericAmount = parseInt(txAmount.replace(/\D/g, ''), 10) || 0;
+  const mainPocket = pockets.find(p => p.type === 'main' || p.id === 'pocket-utama') || pockets[0];
   const budgetPockets = pockets.filter(p => p.type === 'budget');
   const savingPockets = pockets.filter(p => p.type === 'saving');
-  const selectedPocket = pockets.find(p => p.id === txPocketId);
+  const effectivePocketId = txPocketId || mainPocket?.id || '';
+  const selectedPocket = pockets.find(p => p.id === effectivePocketId) || mainPocket;
 
   const handleSaveTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,7 +234,9 @@ export default function TransactionModal() {
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
                     selectedPocket 
-                      ? 'bg-primary/10 text-primary dark:bg-primary/25' 
+                      ? selectedPocket.type === 'main'
+                        ? 'bg-purple-100 text-primary dark:bg-purple-900/40 dark:text-[#C5B3E6]'
+                        : 'bg-primary/10 text-primary dark:bg-primary/25' 
                       : 'bg-gray-200/70 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
                   }`}>
                     {selectedPocket 
@@ -234,22 +246,22 @@ export default function TransactionModal() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-sm text-secondary dark:text-white truncate">
-                        {selectedPocket ? selectedPocket.name : 'Kas Utama / Saldo Umum'}
+                        {selectedPocket?.name || 'Pocket Utama'}
                       </p>
                       {selectedPocket && (
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                          selectedPocket.type === 'budget'
+                          selectedPocket.type === 'main'
+                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-[#C5B3E6]'
+                            : selectedPocket.type === 'budget'
                             ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
                             : 'bg-primary/10 text-primary dark:bg-primary/25 dark:text-primary'
                         }`}>
-                          {selectedPocket.type === 'budget' ? 'Pos Anggaran' : 'Pos Tabungan'}
+                          {selectedPocket.type === 'main' ? 'Pocket Utama' : selectedPocket.type === 'budget' ? 'Pos Anggaran' : 'Pos Tabungan'}
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5 truncate">
-                      {selectedPocket 
-                        ? `Saldo: ${formatAmount(selectedPocket.balance)}` 
-                        : 'Arus kas umum tanpa memotong/menambah pocket'}
+                      Saldo: {formatAmount(selectedPocket?.balance || 0)}
                     </p>
                   </div>
                 </div>
@@ -269,28 +281,49 @@ export default function TransactionModal() {
                     transition={{ duration: 0.15 }}
                     className="mt-2 w-full bg-white dark:bg-gray-800 border border-[var(--border)] rounded-2xl shadow-xl overflow-hidden z-20"
                   >
-                    <div className="max-h-60 overflow-y-auto p-1.5 flex flex-col gap-1">
-                      {/* Option: Kas Utama */}
-                      <button
-                        type="button"
-                        onClick={() => { setTxPocketId(''); setIsPocketDropdownOpen(false); }}
-                        className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all text-left cursor-pointer ${
-                          txPocketId === '' 
-                            ? 'bg-primary/10 text-primary font-bold' 
-                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 flex items-center justify-center">
-                            <Wallet size={16} />
+                    <div className="max-h-64 overflow-y-auto p-1.5 flex flex-col gap-1">
+                      {/* Section 0: ⭐ Pocket Utama */}
+                      {mainPocket && (
+                        <div className="pb-1 border-b border-gray-100 dark:border-gray-700/60 mb-1">
+                          <div className="px-3 py-1 text-[10px] font-bold text-primary dark:text-[#C5B3E6] uppercase tracking-wider flex items-center gap-1.5">
+                            <Sparkles size={12} className="text-primary" />
+                            <span>Penghimpun Dana Utama</span>
                           </div>
-                          <div>
-                            <p className="text-xs font-bold text-secondary dark:text-white">Kas Utama / Saldo Umum</p>
-                            <p className="text-[10px] text-gray-400 font-normal">Tanpa potongan pos anggaran/tabungan</p>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setTxPocketId(mainPocket.id); setIsPocketDropdownOpen(false); }}
+                            className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all text-left cursor-pointer ${
+                              effectivePocketId === mainPocket.id 
+                                ? 'bg-primary text-white shadow-md' 
+                                : 'bg-primary/5 hover:bg-primary/10 text-secondary dark:text-white border border-primary/20'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                effectivePocketId === mainPocket.id 
+                                  ? 'bg-white/20 text-white' 
+                                  : 'bg-primary/15 text-primary dark:bg-primary/30'
+                              }`}>
+                                <Wallet size={16} />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-xs font-bold truncate">{mainPocket.name}</p>
+                                  <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full ${
+                                    effectivePocketId === mainPocket.id ? 'bg-white/25 text-white' : 'bg-primary/15 text-primary'
+                                  }`}>
+                                    Pusat Kas
+                                  </span>
+                                </div>
+                                <p className={`text-[10px] font-medium ${effectivePocketId === mainPocket.id ? 'text-white/80' : 'text-gray-400'}`}>
+                                  Saldo: {formatAmount(mainPocket.balance)}
+                                </p>
+                              </div>
+                            </div>
+                            {effectivePocketId === mainPocket.id && <Check size={16} className="text-white mr-1 shrink-0" />}
+                          </button>
                         </div>
-                        {txPocketId === '' && <Check size={16} className="text-primary mr-1" />}
-                      </button>
+                      )}
 
                       {/* Group 1: Pos Anggaran */}
                       {budgetPockets.length > 0 && (
