@@ -70,42 +70,72 @@ export type PocketMeta = {
 
 export const DEFAULT_POCKETS: PocketMeta[] = [
   {
-    id: 'pocket-emergency',
-    name: 'Dana Darurat',
-    type: 'saving',
-    balance: 0,
-    targetAmount: 10000000,
-    icon: 'Shield',
-    color: 'blue',
-    notes: 'Pos simpanan darurat 3-6 bulan pengeluaran',
-    createdAt: new Date().toISOString(),
-    history: []
-  },
-  {
-    id: 'pocket-monthly',
-    name: 'Kebutuhan Bulanan',
+    id: 'pocket-istri',
+    name: 'Uang Istri',
     type: 'budget',
     balance: 0,
-    targetAmount: 3500000,
-    icon: 'Coffee',
-    color: 'amber',
-    notes: 'Pos belanja pokok, dapur, dan tagihan rutin',
+    targetAmount: 1500000,
+    icon: 'Shield',
+    color: 'blue',
+    notes: 'Uang Bulanan Istri untuk Belanja dll',
     createdAt: new Date().toISOString(),
     history: []
   },
   {
-    id: 'pocket-holiday',
-    name: 'Tabungan Liburan',
+    id: 'pocket-suami',
+    name: 'Uang Suami',
+    type: 'budget',
+    balance: 0,
+    targetAmount: 300000,
+    icon: 'Coffee',
+    color: 'blue',
+    notes: 'Untuk Beli Bensin Bulanan',
+    createdAt: new Date().toISOString(),
+    history: []
+  },
+  {
+    id: 'pocket-liburan',
+    name: 'Uang Liburan',
+    type: 'saving',
+    balance: 0,
+    targetAmount: 2000000,
+    icon: 'Plane',
+    color: 'blue',
+    notes: 'Rencana liburan & refreshing keluarga',
+    createdAt: new Date().toISOString(),
+    history: []
+  },
+  {
+    id: 'pocket-bayi',
+    name: 'Uang Bayi',
     type: 'saving',
     balance: 0,
     targetAmount: 5000000,
-    icon: 'Plane',
-    color: 'emerald',
-    notes: 'Rencana liburan & refreshing keluarga',
+    icon: 'Wallet',
+    color: 'blue',
+    notes: 'Untuk keperluan Bayi',
     createdAt: new Date().toISOString(),
     history: []
   }
 ];
+
+const SYSTEM_POCKETS_ID = 999999999;
+const SYSTEM_POCKETS_NAME = '__SYSTEM_POCKETS__';
+
+// Helper to save pockets to Supabase cloud
+const savePocketsToRemote = async (updatedPockets: PocketMeta[]) => {
+  try {
+    await supabase.from('shopping_items').upsert({
+      id: SYSTEM_POCKETS_ID,
+      name: SYSTEM_POCKETS_NAME,
+      store: JSON.stringify(updatedPockets),
+      price: 0,
+      date: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Failed to sync pockets to Supabase:', err);
+  }
+};
 
 type UserContextType = {
   userName: string;
@@ -237,9 +267,49 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (cats && cats.length > 0) setCategories(cats);
       
       const { data: items } = await supabase.from('shopping_items').select('*').order('id', { ascending: false });
-      if (items) setShoppingItems(items);
+      if (items) {
+        // Extract system pockets storage record
+        const pocketRow = items.find((it: any) => it.id === SYSTEM_POCKETS_ID || it.name === SYSTEM_POCKETS_NAME);
+        if (pocketRow && pocketRow.store) {
+          try {
+            const parsed = JSON.parse(pocketRow.store);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setPockets(parsed);
+              localStorage.setItem('pockets', JSON.stringify(parsed));
+            }
+          } catch (e) {
+            console.error('Error parsing remote pockets:', e);
+          }
+        } else {
+          // If not in cloud yet, seed with current/default pockets
+          savePocketsToRemote(DEFAULT_POCKETS);
+        }
+        
+        // Filter out system configuration row from shopping items
+        const realShoppingItems = items.filter((it: any) => it.id !== SYSTEM_POCKETS_ID && it.name !== SYSTEM_POCKETS_NAME);
+        setShoppingItems(realShoppingItems);
+      }
     };
     fetchData();
+
+    // Supabase Realtime listener to synchronize pockets across devices (Desktop, HP, Tab)
+    const realtimeChannel = supabase
+      .channel('realtime_pockets_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_items' }, (payload) => {
+        const row = payload.new as any;
+        if (row && (row.id === SYSTEM_POCKETS_ID || row.name === SYSTEM_POCKETS_NAME) && row.store) {
+          try {
+            const remotePockets = JSON.parse(row.store);
+            if (Array.isArray(remotePockets) && remotePockets.length > 0) {
+              setPockets(remotePockets);
+              localStorage.setItem('pockets', JSON.stringify(remotePockets));
+            }
+          } catch (e) {
+            console.error('Realtime sync parse error:', e);
+          }
+        }
+      })
+      .subscribe();
 
     // Idle Timer Logic (5 minutes = 300,000 ms)
     let timeoutId: NodeJS.Timeout;
@@ -264,6 +334,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       clearTimeout(timeoutId);
+      supabase.removeChannel(realtimeChannel);
       events.forEach(event => {
         document.removeEventListener(event, resetTimer);
       });
@@ -306,6 +377,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setPockets(prev => {
       const updated = [...prev, newPocket];
       localStorage.setItem('pockets', JSON.stringify(updated));
+      savePocketsToRemote(updated);
       return updated;
     });
   };
@@ -314,6 +386,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setPockets(prev => {
       const updated = prev.map(p => p.id === id ? { ...p, ...updates } : p);
       localStorage.setItem('pockets', JSON.stringify(updated));
+      savePocketsToRemote(updated);
       return updated;
     });
   };
@@ -322,6 +395,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setPockets(prev => {
       const updated = prev.filter(p => p.id !== id);
       localStorage.setItem('pockets', JSON.stringify(updated));
+      savePocketsToRemote(updated);
       return updated;
     });
   };
@@ -350,6 +424,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         };
       });
       localStorage.setItem('pockets', JSON.stringify(updated));
+      savePocketsToRemote(updated);
       return updated;
     });
   };

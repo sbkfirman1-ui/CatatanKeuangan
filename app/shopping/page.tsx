@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ShoppingCart, Plus, Edit2, Trash2, X, Save, Store, Tag, Calendar } from 'lucide-react';
 import { useUser, ShoppingItem } from '@/context/UserContext';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 export default function ShoppingPage() {
   const { pages, shoppingItems, setShoppingItems, formatAmount } = useUser();
   const pageMeta = pages.find(p => p.id === 'shopping');
+  const visibleShoppingItems = useMemo(() => shoppingItems.filter(i => i.id !== 999999999 && i.name !== '__SYSTEM_POCKETS__'), [shoppingItems]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -93,7 +94,7 @@ export default function ShoppingPage() {
       title: 'Reset Data',
       message: 'Apakah Anda yakin ingin menghapus SEMUA catatan belanja? Tindakan ini tidak dapat dibatalkan.',
       onConfirm: async () => {
-        await supabase.from('shopping_items').delete().neq('id', 0);
+        await supabase.from('shopping_items').delete().neq('id', 999999999).neq('name', '__SYSTEM_POCKETS__');
         setShoppingItems([]);
       }
     });
@@ -131,7 +132,7 @@ export default function ShoppingPage() {
       </header>
 
       <div className="bento-card flex-1 p-4 md:p-6 flex flex-col">
-        {shoppingItems.length === 0 ? (
+        {visibleShoppingItems.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
             <div className="w-20 h-20 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 border border-gray-100 dark:border-gray-700">
               <ShoppingCart size={40} className="opacity-50" />
@@ -141,7 +142,7 @@ export default function ShoppingPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {shoppingItems.map(item => (
+            {visibleShoppingItems.map(item => (
               <div key={item.id} className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 p-5 rounded-2xl flex flex-col gap-4 group transition-colors hover:border-gray-200 dark:hover:border-gray-600">
                 <div className="flex justify-between items-start">
                   <div>
